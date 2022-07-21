@@ -241,7 +241,7 @@ class SpacedRepetition:
     ...
 
     True --> Next level
-    False --> Prev level (Level 0 is the first possible level.)
+    False --> Level 0
     """
 
     def __init__(self, multiplier: int = 2):
@@ -250,19 +250,16 @@ class SpacedRepetition:
     def _schedule(self, current_level: int, is_success: bool) -> tuple[int, datetime]:
         if is_success:
             new_level = current_level + 1
-        else:
-            new_level = max(0, current_level - 1)
-
-        if new_level == 0:
-            num_days = 0
-        else:
             num_days = self.multiplier ** (new_level - 1)
+        else:
+            new_level = 0
+            num_days = 0
 
         today = _get_today()
         new_date = today + dt.timedelta(days=num_days)
         return new_level, new_date
 
-    def review_card(self, card: Card, is_success: bool):
+    def review_card(self, card: Card, is_success: bool) -> None:
         new_level, new_date = self._schedule(card.get_level(), is_success)
         card.update(new_level=new_level, new_date_str=_date_to_str(new_date))
 
