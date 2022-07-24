@@ -70,14 +70,19 @@ class Card:
             f.write(back + "\n")
 
     @staticmethod
-    def create(category: str, front: str, back: str) -> Card:
+    def create_new_card(category: str, front: str, back: str) -> Card:
         card_id = str(int(Category(category).get_latest_card_id()) + 1)
         level = 0
         date_str = _get_today_str()
+        date_path = f"{category}/{date_str}"
+        if not os.path.exists(date_path):
+            os.mkdir(date_path)
+        Card._write_card(category, front, back, card_id, level, date_str)
+        Category(category).update_latest_card_id(card_id)
         return Card(category, front, back, card_id, level, date_str)
 
     @staticmethod
-    def find(category: str, card_id: str, date_str: Optional[str] = None) -> Card:
+    def find_existing_card(category: str, card_id: str, date_str: Optional[str] = None) -> Card:
         if date_str is None:
             date_str = Card._find_date_str(category, card_id)
         level, front, back = Card._read_card(category, card_id)
@@ -112,15 +117,7 @@ class Card:
     def get_date_str(self) -> str:
         return self._date_str
 
-    def add(self) -> None:
-        date_path = f"{self._category}/{self._date_str}"
-        if not os.path.exists(date_path):
-            os.mkdir(date_path)
-
-        Card._write_card(self._category, self._front, self._back, self._card_id, self._level, self._date_str)
-        Category(self._category).update_latest_card_id(self._card_id)
-
-    def remove(self) -> None:
+    def delete(self) -> None:
         card_path = f"{self._category}/{self._date_str}/{self._card_id}"
         assert os.path.exists(card_path)
         os.remove(card_path)
@@ -157,7 +154,7 @@ class Card:
 class Category:
 
     @staticmethod
-    def create(category: str) -> Category:
+    def create_new_category(category: str) -> Category:
         assert not os.path.exists(category)
         os.mkdir(category)
         with open(f"{category}/id", "w") as f:
@@ -165,12 +162,18 @@ class Category:
         return Category(category)
 
     @staticmethod
-    def find(category: str) -> Category:
+    def find_existing_category(category: str) -> Category:
         return Category(category)
 
     def __init__(self, category: str):
         assert os.path.exists(category), f"Please create the category first: Category.create('{category}')"
         self._category = category
+
+    def create_new_card(self, front: str, back: str) -> Card:
+        return Card.create_new_card(self._category, front, back)
+
+    def find_existing_card(self, card_id: str, date_str: Optional[str] = None) -> Card:
+        return Card.find_existing_card(self._category, card_id, date_str)
 
     def get_num_cards(self) -> int:
         assert os.path.exists(self._category)
@@ -182,7 +185,7 @@ class Category:
                 num_cards += len(card_files)
         return num_cards
 
-    def remove(self, prompt: bool = True) -> None:
+    def delete_category(self, prompt: bool = True) -> None:
         assert os.path.exists(self._category)
         num_cards = self.get_num_cards()
 
@@ -196,6 +199,11 @@ class Category:
                 exit(1)
         else:
             shutil.rmtree(self._category)
+
+    def update_category(self, new_category: str) -> None:
+        assert os.path.exists(self._category)
+        assert not os.path.exists(new_category)
+        os.rename(self._category, new_category)
 
     def get_latest_card_id(self) -> str:
         with open(f"{self._category}/id", "r") as f:
@@ -217,7 +225,7 @@ class Category:
             if os.path.isdir(f"{self._category}/{date_str}"):
                 card_ids = os.listdir(f"{self._category}/{date_str}")
                 for card_id in card_ids:
-                    card = Card.find(self._category, card_id, date_str)
+                    card = Card.find_existing_card(self._category, card_id, date_str)
                     cards.append(card)
         return cards
 
@@ -244,13 +252,13 @@ class SpacedRepetition:
     False --> Level 0
     """
 
-    def __init__(self, multiplier: int = 2):
+    def __init__(self, multiplier: float = 2.0):
         self.multiplier = multiplier
 
     def _schedule(self, current_level: int, is_success: bool) -> tuple[int, datetime]:
         if is_success:
             new_level = current_level + 1
-            num_days = self.multiplier ** (new_level - 1)
+            num_days = round(self.multiplier ** (new_level - 1))
         else:
             new_level = 0
             num_days = 0
